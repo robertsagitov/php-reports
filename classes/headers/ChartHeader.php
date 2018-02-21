@@ -110,47 +110,47 @@ class ChartHeader extends HeaderBase {
 			'default'=>array()
 		)
 	);
-	
+
 	public static function init($params, &$report) {
 		$report->exportHeader('Chart',$params);
 
 		if(!isset($params['type'])) {
 			$params['type'] = 'LineChart';
 		}
-		
+
 		if(isset($params['omit-total'])) {
 			$params['omit-totals'] = $params['omit-total'];
 			unset($params['omit-total']);
 		}
-		
+
 		if(!isset($report->options['Charts'])) $report->options['Charts'] = array();
-		
+
 		if(isset($params['width'])) $params['width'] = self::fixDimension($params['width']);
 		if(isset($params['height'])) $params['height'] = self::fixDimension($params['height']);
-		
+
 		$params['num'] = count($report->options['Charts'])+1;
 		$params['Rows'] = array();
-		
+
 		$report->options['Charts'][] = $params;
-		
+
 		$report->options['has_charts'] = true;
 
 	}
-	protected static function fixDimension($dim) {		
+	protected static function fixDimension($dim) {
 		if(preg_match('/^[0-9]+$/',$dim)) $dim .= "px";
 		return $dim;
 	}
-	
+
 	public static function parseShortcut($value) {
 		$params = explode(',',$value);
 		$value = array();
 		foreach($params as $param) {
 			$param = trim($param);
-			if(strpos($param,'=') !== false) {							
+			if(strpos($param,'=') !== false) {
 				list($key,$val) = explode('=',$param,2);
 				$key = trim($key);
 				$val = trim($val);
-				
+
 				//some parameters can have multiple values separated by ":"
 				if(in_array($key,array('x','y','colors'),true)) {
 					$val = explode(':',$val);
@@ -160,30 +160,30 @@ class ChartHeader extends HeaderBase {
 				$key = $param;
 				$val = true;
 			}
-			
+
 			$value[$key] = $val;
 		}
-		
+
 		if(isset($value['x'])) $value['columns'] = $value['x'];
 		else $value['columns'] = array(1);
-		
+
 		if(isset($value['y'])) $value['columns'] = array_merge($value['columns'],$value['y']);
 		else $value['all'] = true;
-		
+
 		unset($value['x']);
 		unset($value['y']);
-		
+
 		return $value;
 	}
-	
+
 	protected static function getRowInfo(&$rows, $params, $num, &$report) {
 		$cols = array();
-		
+
 		//expand columns
 		$chart_rows = array();
-		foreach($rows as $k=>$row) {			
+		foreach($rows as $k=>$row) {
 			$vals = array();
-			
+
 			if($k===0) {
 				$i=1;
 				$unsorted = 1000;
@@ -199,10 +199,10 @@ class ChartHeader extends HeaderBase {
 						$unsorted ++;
 					}
 				}
-				
+
 				ksort($cols);
 			}
-			
+
 			foreach($cols as $key) {
 				if(isset($row['values'][$key]->chart_value) && is_array($row['values'][$key]->chart_value)) {
 					foreach($row['values'][$key]->chart_value as $ckey=>$cval) {
@@ -216,10 +216,10 @@ class ChartHeader extends HeaderBase {
 					$vals[] = $temp;
 				}
 			}
-			
+
 			$chart_rows[] = $vals;
 		}
-		
+
 		//determine column types
 		$types = array();
 		foreach($chart_rows as $i=>$row) {
@@ -242,20 +242,21 @@ class ChartHeader extends HeaderBase {
 				elseif($types[$k] === 'date' && $type === 'number') $types[$k] = 'number';
 			}
 		}
-		
+
 		$report->options['Charts'][$num]['datatypes'] = $types;
-		
+
 		//build chart rows
 		$report->options['Charts'][$num]['Rows'] = array();
-		
+
 		foreach($chart_rows as $i=>&$row) {
 			$vals = array();
-			foreach($row as $key=>$val) {			
+			foreach($row as $key=>$val) {
 				if(is_null($val->getValue())) {
 					$val->datatype = 'null';
 				}
 				elseif($types[$key] === 'datetime') {
-					$val->setValue(date('m/d/Y H:i:s',strtotime($val->getValue())));
+					//$val->setValue(date('m/d/Y H:i:s',strtotime($val->getValue())));
+					$val->setValue(date('Y-m-d H:i:s',strtotime($val->getValue())));
 					$val->datatype = 'datetime';
 				}
 				elseif($types[$key] === 'timeofday') {
@@ -273,20 +274,20 @@ class ChartHeader extends HeaderBase {
 				else {
 					$val->datatype = 'string';
 				}
-				
+
 				$vals[] = $val;
 			}
-			
+
 			$report->options['Charts'][$num]['Rows'][] = array(
 				'values'=>$vals,
 				'first'=>!$report->options['Charts'][$num]['Rows']
 			);
 		}
 	}
-	
+
 	protected static function generateHistogramRows($rows, $column, $num_buckets) {
 		$column_key = null;
-		
+
 		//if a name is given as the column, determine the column index
 		if(!is_numeric($column)) {
 			foreach($rows[0]['values'] as $k=>$v) {
@@ -302,14 +303,14 @@ class ChartHeader extends HeaderBase {
 			$column --;
 			$column_key = $rows[0]['values'][$column]->key;
 		}
-		
+
 		//get a list of values for the histogram
 		$vals = array();
 		foreach($rows as &$row) {
 			$vals[] = floatval(preg_replace('/[^0-9.]*/','',$row['values'][$column]->getValue()));
 		}
 		sort($vals);
-		
+
 		//determine buckets
 		$count = count($vals);
 		$buckets = array();
@@ -317,16 +318,16 @@ class ChartHeader extends HeaderBase {
 		$max = $vals[$count-1];
 		$step = ($max-$min)/$num_buckets;
 		$old_limit = $min;
-		
+
 		for($i=1;$i<$num_buckets+1;$i++) {
 			$limit = $old_limit + $step;
-			
+
 			$buckets[round($old_limit,2)." - ".round($limit,2)] = count(array_filter($vals,function($val) use($old_limit,$limit) {
 				return $val >= $old_limit && $val < $limit;
 			}));
 			$old_limit = $limit;
 		}
-		
+
 		//build chart rows
 		$chart_rows = array();
 		foreach($buckets as $name=>$count) {
@@ -340,7 +341,7 @@ class ChartHeader extends HeaderBase {
 		}
 		return $chart_rows;
 	}
-	
+
 	protected static function determineDataType($value) {
 		if(is_null($value)) return null;
 		elseif($value === '') return null;
@@ -353,12 +354,12 @@ class ChartHeader extends HeaderBase {
 		else return 'string';
 	}
 
-	public static function beforeRender(&$report) {	
+	public static function beforeRender(&$report) {
 		// Expand out multiple datasets into their own charts
 		$new_charts = array();
 		foreach($report->options['Charts'] as $num=>$params) {
 			$copy = $params;
-			
+
 			// If chart is for multiple datasets
 			if(is_array($params['dataset'])) {
 				foreach($params['dataset'] as $dataset) {
@@ -381,9 +382,9 @@ class ChartHeader extends HeaderBase {
 				$new_charts[] = $copy;
 			}
 		}
-		
+
 		$report->options['Charts'] = $new_charts;
-		
+
 		foreach($report->options['Charts'] as $num=>&$params) {
 			self::_processChart($num,$params,$params['dataset'],$report);
 		}
@@ -403,7 +404,7 @@ class ChartHeader extends HeaderBase {
 				if(!$params['columns']) $params['columns'] = range(1,count($rows[0]['values']));
 			}
 		}
-		
+
 		self::getRowInfo($rows, $params, $num, $report);
 	}
 }
